@@ -1,112 +1,105 @@
 /**
- * ESP8266 GPIO2 PWM 调光实验 (呼吸灯)
+ * @file    main.c
+ * @brief   ESP-01S MQTT 呼吸灯 — 程序入口
  *
- * 硬件: ESP-01S (ESP8266)
- * 引脚: GPIO2 → R6(1K) → Q1(SS8050) → LED1-24
- * 框架: ESP8266 RTOS SDK
+ *          架构 (自底向上):
+ *          ┌─────────────────────────────────────┐
+ *          │  main.c        ← 组装 + 全局定时器    │
+ *          │  led_controller ← 业务编排层          │
+ *          │  pwm_led        ← 硬件抽象           │
+ *          │  mqtt_client    ← 传输层             │
+ *          │  wifi_sta       ← 网络层             │
+ *          └─────────────────────────────────────┘
  *
- * 功能:
- *  - 通过 PWM 驱动 GPIO2 实现 LED 呼吸灯效果
- *  - 占空比 0→1023→0 循环渐变
+ *          依赖方向: main → controller → {pwm_led, mqtt_client → wifi_sta}
+ *          每层只依赖下一层，无循环依赖。
  */
+
+#include "config.h"
+#include "pwm_led.h"
+#include "wifi_sta.h"
+#include "mqtt_client.h"
+#include "led_controller.h"
 
 #include "esp_common.h"
-#include "espressif/pwm.h"
-#include "espressif/esp8266/pin_mux_register.h"
+#include "uart.h"
 
-/* ========== PWM 配置 ========== */
-#define PWM_PERIOD      1000        /* PWM 周期, 单位: us (1000us = 1KHz) */
-#define PWM_CHANNEL_NUM 1           /* 只用 1 个 PWM 通道 */
-#define PWM_STEP        5           /* 每次变化的步长 */
-#define PWM_INTERVAL_MS 10          /* 定时器间隔, 单位: ms */
+/* ================================================================
+ *  全局定时器 — MQTT 心跳 + 断线重连
+ * ================================================================ */
 
-static uint32 g_duty = 0;           /* 当前占空比 (0~1023) */
-static int8_t g_direction = 1;      /* 1=变亮, -1=变暗 */
-static os_timer_t g_pwm_timer;
+static os_timer_t glue_timer;
 
 /**
- * PWM 呼吸灯定时器回调
- * 每隔 PWM_INTERVAL_MS 毫秒调整一次占空比
+ * @brief  定时执行: MQTT Ping / WiFi 重连 / MQTT 重连
+ *
+ *          这些 "粘合逻辑" 无法归属到任何单一模块，
+ *          只需在这里写 3 行调度代码即可。
  */
-static void ICACHE_FLASH_ATTR pwm_timer_cb(void *arg)
+static void ICACHE_FLASH_ATTR on_glue_timer(void *arg)
 {
-    g_duty += g_direction * PWM_STEP;
+    /* 1. 心跳 */
+    mqtt_client_ping();
 
-    /* 到达最大亮度时反向 (变暗) */
-    if (g_duty >= PWM_DEPTH) {
-        g_duty = PWM_DEPTH;
-        g_direction = -1;
-    }
-    /* 到达最暗时反向 (变亮) */
-    else if (g_duty == 0) {
-        g_duty = 0;
-        g_direction = 1;
+    /* 2. WiFi 断开 → 重连 */
+    if (!wifi_sta_is_connected()) {
+        wifi_station_connect();
     }
 
-    /* 更新占空比并生效 */
-    pwm_set_duty(g_duty, 0);
-    pwm_start();
+    /* 3. WiFi 在线但 MQTT 断开 → 重连 Broker */
+    if (wifi_sta_is_connected() && !mqtt_client_is_connected()) {
+        mqtt_client_connect();
+    }
 }
 
-/**
- * Flash RF 校准扇区 (SDK 必需)
- */
-uint32 ICACHE_FLASH_ATTR user_rf_cal_sector_set(void)
+/* ================================================================
+ *  Flash RF 校准扇区 (SDK 强制要求)
+ * ================================================================ */
+
+uint32_t ICACHE_FLASH_ATTR user_rf_cal_sector_set(void)
 {
     flash_size_map size_map = system_get_flash_size_map();
-    uint32 rf_cal_sec = 0;
-
     switch (size_map) {
-        case FLASH_SIZE_4M_MAP_256_256:
-            rf_cal_sec = 128 - 5;
-            break;
-        case FLASH_SIZE_8M_MAP_512_512:
-            rf_cal_sec = 256 - 5;
-            break;
+        case FLASH_SIZE_4M_MAP_256_256:       return 128 - 5;
+        case FLASH_SIZE_8M_MAP_512_512:       return 256 - 5;
         case FLASH_SIZE_16M_MAP_512_512:
-        case FLASH_SIZE_16M_MAP_1024_1024:
-            rf_cal_sec = 512 - 5;
-            break;
-        default:
-            rf_cal_sec = 0;
-            break;
+        case FLASH_SIZE_16M_MAP_1024_1024:    return 512 - 5;
+        default:                              return 0;
     }
-    return rf_cal_sec;
 }
 
-/**
- * 用户初始化入口 (ESP8266 RTOS SDK 规范)
- */
+/* ================================================================
+ *  入口
+ * ================================================================ */
+
 void user_init(void)
 {
-    os_printf("\r\n");
-    os_printf("========================================\r\n");
-    os_printf("  ESP8266 GPIO2 PWM 呼吸灯\r\n");
-    os_printf("  硬件: ESP-01S (1MB Flash)\r\n");
-    os_printf("  GPIO2 → Q1(SS8050) → LED×24\r\n");
-    os_printf("  PWM: %dHz, 占空比 0~%d\r\n", 1000000 / PWM_PERIOD, PWM_DEPTH);
+    /* 串口波特率修正 (默认 74880 → 115200) */
+    UART_SetBaudrate(UART0, BIT_RATE_115200);
+
+    os_printf("\r\n========================================\r\n");
+    os_printf("  ESP-01S MQTT Breathing LED v2\r\n");
+    os_printf("  Broker: %s:%d\r\n", MQTT_BROKER, MQTT_PORT);
     os_printf("========================================\r\n\r\n");
 
-    /* ---- PWM 引脚配置 ----
-     * pin_info 格式: {复用寄存器, 功能号, GPIO编号}
-     * GPIO2: PERIPHS_IO_MUX_GPIO2_U, FUNC_GPIO2(0), pin=2
-     */
-    uint32 pin_info[PWM_CHANNEL_NUM][3] = {
-        {PERIPHS_IO_MUX_GPIO2_U, FUNC_GPIO2, 2}
-    };
+    /* ---- 第 1 层: 硬件初始化 ---- */
+    pwm_led_init();
 
-    /* 初始占空比: 0 (LED 全灭) */
-    uint32 init_duty[PWM_CHANNEL_NUM] = {0};
+    /* ---- 第 2 层: 传输初始化 (先 init 再注册 on_connected) ---- */
+    mqtt_client_init();
 
-    /* 初始化 PWM: 周期 1000us, 1 个通道 */
-    pwm_init(PWM_PERIOD, init_duty, PWM_CHANNEL_NUM, pin_info);
-    pwm_start();
+    /* WiFi 连接成功 → 自动发起 MQTT 连接 */
+    wifi_sta_on_connected(mqtt_client_connect);
 
-    os_printf("[PWM] GPIO2 PWM 初始化完成\r\n");
-    os_printf("[PWM] 开始呼吸灯效果...\r\n\r\n");
+    wifi_sta_init();
 
-    /* 启动呼吸灯定时器 (周期性调节占空比) */
-    os_timer_disarm(&g_pwm_timer);
-    os_timer_setfn(&g_pwm_timer, (os_timer_func_t *)pwm_timer_cb, NULL);
-    os_timer_arm(&g_pwm_timer, PWM_INTERVAL_MS, 1);  /* 每 10ms 重复 */
+    /* ---- 第 3 层: 业务初始化 ---- */
+    led_controller_init();
+
+    /* ---- 粘合层: MQTT 心跳 + 重连, 每 30 秒 ---- */
+    os_timer_disarm(&glue_timer);
+    os_timer_setfn(&glue_timer, (os_timer_func_t *)on_glue_timer, NULL);
+    os_timer_arm(&glue_timer, MQTT_PING_MS, 1);
+
+    os_printf("[Main] System ready.\r\n");
 }
