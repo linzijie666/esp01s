@@ -1,14 +1,26 @@
-﻿{
-  "description": "ESP-01S MQTT Breathing LED Controller",
-  "projectname": "esp01s-led",
-  "setting": {
-    "urlCheck": true,
-    "es6": true,
-    "postcss": true,
-    "minified": true
-  },
-  "compileType": "miniprogram",
-  "libVersion": "3.6.0",
-  "appid": "你的小程序AppID",
-  "condition": {}
+{
+    "setting": {
+        "es6": true,
+        "postcss": true,
+        "minified": true,
+        "uglifyFileName": false,
+        "enhance": true,
+        "packNpmRelationList": [],
+        "babelSetting": {
+            "ignore": [],
+            "disablePlugins": [],
+            "outputPath": ""
+        },
+        "useCompilerPlugins": false,
+        "minifyWXML": true,
+        "condition": false
+    },
+    "compileType": "miniprogram",
+    "simulatorPluginLibVersion": {},
+    "packOptions": {
+        "ignore": [],
+        "include": []
+    },
+    "appid": "wxee0b88b510b3b7e9",
+    "editorSetting": {}
 }

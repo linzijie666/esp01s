@@ -1,0 +1,69 @@
+<view class="dashboard-container">
+
+  <!-- 顶部设备状态卡片 -->
+  <view class="header-card">
+    <view class="device-info">
+      <van-icon name="bulb-o" size="28px" color="{{ power == 1 ? '#ffcc00' : '#c8c9cc' }}" />
+      <view class="text-info">
+        <text class="title">ESP-01S 智能灯效</text>
+        <text class="subtitle">Broker: broker.emqx.io</text>
+      </view>
+    </view>
+    <van-tag type="{{ connected ? 'success' : 'danger' }}" size="medium" round>
+      {{ connected ? '已连接' : '离线' }}
+    </van-tag>
+  </view>
+
+  <!-- 设备总控 -->
+  <van-cell-group inset title="设备总控">
+    <van-cell title="电源开关" center size="large">
+      <van-switch
+        slot="right-icon"
+        checked="{{ power == 1 }}"
+        bind:change="onPowerChange"
+        size="26px"
+        active-color="#07c160"
+      />
+    </van-cell>
+  </van-cell-group>
+
+  <!-- 工作模式 -->
+  <van-cell-group inset title="工作模式" custom-class="group-spacing">
+    <view class="mode-radio-container">
+      <van-radio-group value="{{ mode }}" bind:change="onModeChange" direction="horizontal">
+        <van-radio name="steady" checked-color="#07c160">常亮模式</van-radio>
+        <van-radio name="breathing" checked-color="#07c160">呼吸模式</van-radio>
+      </van-radio-group>
+    </view>
+  </van-cell-group>
+
+  <!-- 参数调节 -->
+  <van-cell-group inset title="参数调节" custom-class="group-spacing">
+
+    <van-cell title="亮度" label="当前: {{ brightness }}%" center border="{{ false }}">
+      <view class="slider-wrapper">
+        <van-slider
+          value="{{ brightness }}"
+          bind:change="onBrightnessChange"
+          active-color="#1989fa"
+          button-size="24px"
+        />
+      </view>
+    </van-cell>
+
+    <van-cell title="呼吸速度" label="档位: {{ speed }}" center border="{{ false }}">
+      <view class="slider-wrapper">
+        <van-slider
+          value="{{ speed }}"
+          min="1" max="5" step="1"
+          bind:change="onSpeedChange"
+          disabled="{{ mode === 'steady' }}"
+          active-color="#ff976a"
+          button-size="24px"
+        />
+      </view>
+    </van-cell>
+
+  </van-cell-group>
+
+</view>

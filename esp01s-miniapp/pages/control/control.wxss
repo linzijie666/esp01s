@@ -1,0 +1,67 @@
+/* pages/control/control.wxss */
+
+/* 设置页面背景色为典型的 Vant 浅灰，凸显 Inset 卡片 */
+page {
+  background-color: #f7f8fa;
+}
+
+.dashboard-container {
+  padding: 20px 0 40px 0;
+}
+
+/* 顶部状态卡片样式 */
+.header-card {
+  background-color: #ffffff;
+  margin: 0 16px 20px 16px;
+  border-radius: 12px;
+  padding: 20px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+.device-info {
+  display: flex;
+  align-items: center;
+}
+
+.text-info {
+  display: flex;
+  flex-direction: column;
+  margin-left: 12px;
+}
+
+.text-info .title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #323233;
+}
+
+.text-info .subtitle {
+  font-size: 12px;
+  color: #969799;
+  margin-top: 4px;
+}
+
+/* 控制卡片之间的间距 */
+.group-spacing {
+  margin-top: 16px !important;
+}
+
+/* 单选框居中排布 */
+.mode-radio-container {
+  padding: 16px;
+  display: flex;
+  justify-content: space-around;
+  background-color: #fff;
+}
+
+/* 让 Slider 靠右侧并占据适当宽度 */
+.slider-wrapper {
+  width: 55vw;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  height: 100%;
+}

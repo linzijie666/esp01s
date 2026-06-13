@@ -1,12 +1,12 @@
-﻿{
+{
   "pages": [
     "pages/control/control"
   ],
   "window": {
-    "navigationBarTitleText": "ESP-01S 呼吸灯",
-    "navigationBarBackgroundColor": "#1a1a2e",
-    "navigationBarTextStyle": "white",
-    "backgroundColor": "#0f0f23"
+    "navigationBarTitleText": "ESP-01S 智能灯效",
+    "navigationBarBackgroundColor": "#ffffff",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f7f8fa"
   },
   "sitemapLocation": "sitemap.json"
 }
